@@ -22,23 +22,36 @@ fn main() {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Set { key, value } => {
-            store.set(key.to_owned(), value.to_owned());
-            eprintln!("unimplemented");
-            exit(1);
+            match store.set(key.to_owned(), value.to_owned()){
+                Ok(()) => {}
+                Err(e) => fail(e),
+            }
         }
-        Commands::Get { key: _ } => {
-            // match store.get(key.to_owned()) {
-            //     Some(value) => println!("{}", value),
-            //     None => println!("Key not found"),
-            // }
-
-            eprintln!("unimplemented");
-            exit(1);
+        Commands::Get { key } => {
+            match store.get(key.to_owned()) {
+                Ok(Some(value)) => println!("{}", value),
+                Ok(None) => println!("Key not found"),
+                Err(e) => fail(e),
+            }
         }
         Commands::Rm { key } => {
-            store.remove(key.to_owned());
-            eprintln!("unimplemented");
-            exit(1);
+            match store.remove(key.to_owned()) {
+                Ok(()) => {}
+                Err(e) => {
+                    if e == "Key not found" {
+                        println!("{}", e);
+                        exit(1);
+                    }
+                    else {
+                        fail(e);
+                    }
+                },
+            } 
         }
     }
+}
+
+fn fail(reason: String) -> ! {
+    eprintln!("{}", reason);
+    exit(1);
 }
