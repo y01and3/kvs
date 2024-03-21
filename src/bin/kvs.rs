@@ -18,36 +18,29 @@ enum Commands {
 }
 
 fn main() {
-    let mut store = KvStore::new();
+    let mut store = KvStore::open(std::env::current_dir().unwrap()).unwrap();
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Set { key, value } => {
-            match store.set(key.to_owned(), value.to_owned()){
-                Ok(()) => {}
-                Err(e) => fail(e),
+        Commands::Set { key, value } => match store.set(key.to_owned(), value.to_owned()) {
+            Ok(()) => {}
+            Err(e) => fail(e),
+        },
+        Commands::Get { key } => match store.get(key.to_owned()) {
+            Ok(Some(value)) => println!("{}", value),
+            Ok(None) => println!("Key not found"),
+            Err(e) => fail(e),
+        },
+        Commands::Rm { key } => match store.remove(key.to_owned()) {
+            Ok(()) => {}
+            Err(e) => {
+                if e == "Key not found" {
+                    println!("{}", e);
+                    exit(1);
+                } else {
+                    fail(e);
+                }
             }
-        }
-        Commands::Get { key } => {
-            match store.get(key.to_owned()) {
-                Ok(Some(value)) => println!("{}", value),
-                Ok(None) => println!("Key not found"),
-                Err(e) => fail(e),
-            }
-        }
-        Commands::Rm { key } => {
-            match store.remove(key.to_owned()) {
-                Ok(()) => {}
-                Err(e) => {
-                    if e == "Key not found" {
-                        println!("{}", e);
-                        exit(1);
-                    }
-                    else {
-                        fail(e);
-                    }
-                },
-            } 
-        }
+        },
     }
 }
 
