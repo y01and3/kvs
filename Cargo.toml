@@ -18,3 +18,13 @@ walkdir = "2.2.7"
 clap = { version = "4.5.3", features = ["derive"] }
 serde_json = "1.0.114"
 serde = "1.0.197"
+sled = "0.34.7"
+ctrlc = "3.4.4"
+
+[[bin]]
+name = "kvs-server"
+path = "src/bin/kvs-server.rs"
+
+[[bin]]
+name = "kvs-client"
+path = "src/bin/kvs-client.rs"

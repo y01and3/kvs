@@ -1,13 +1,20 @@
 use std::process::exit;
 
 use clap::{Parser, Subcommand};
-use kvs::KvStore;
+use kvs::net::client::KvClient;
 
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+    #[arg(
+        long,
+        value_name = "IP-PORT",
+        default_value = "127.0.0.1:4000",
+        global = true
+    )]
+    addr: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -18,28 +25,21 @@ enum Commands {
 }
 
 fn main() {
-    let mut store = KvStore::open(std::env::current_dir().unwrap()).unwrap();
     let cli = Cli::parse();
+    let mut client = KvClient::new(cli.addr.unwrap_or("127.0.0.1:4000".to_string()));
     match &cli.command {
-        Commands::Set { key, value } => match store.set(key.to_owned(), value.to_owned()) {
+        Commands::Set { key, value } => match client.set(key.to_owned(), value.to_owned()) {
             Ok(()) => {}
             Err(e) => fail(e),
         },
-        Commands::Get { key } => match store.get(key.to_owned()) {
+        Commands::Get { key } => match client.get(key.to_owned()) {
             Ok(Some(value)) => println!("{}", value),
             Ok(None) => println!("Key not found"),
             Err(e) => fail(e),
         },
-        Commands::Rm { key } => match store.remove(key.to_owned()) {
+        Commands::Rm { key } => match client.remove(key.to_owned()) {
             Ok(()) => {}
-            Err(e) => {
-                if e == "Key not found" {
-                    println!("{}", e);
-                    exit(1);
-                } else {
-                    fail(e);
-                }
-            }
+            Err(e) => fail(e),
         },
     }
 }
