@@ -81,7 +81,7 @@ fn write_benches(c: &mut Criterion) {
 }
 
 fn read_benches(c: &mut Criterion) {
-    let mut group = c.benchmark_group("write_bench");
+    let mut group = c.benchmark_group("read_bench");
     group.bench_function("kvs", move |b| {
         b.iter_batched(
             || {
