@@ -4,7 +4,6 @@ pub trait KvsEngine {
     fn set(&mut self, key: String, value: String) -> Result<()>;
     fn get(&mut self, key: String) -> Result<Option<String>>;
     fn remove(&mut self, key: String) -> Result<()>;
-    fn store(&mut self) -> Result<()>;
 }
 
 pub struct SledKvsEngine {
@@ -14,6 +13,11 @@ pub struct SledKvsEngine {
 impl SledKvsEngine {
     pub fn new(map: Db) -> SledKvsEngine {
         SledKvsEngine { map }
+    }
+
+    pub fn store(&mut self) -> Result<()> {
+        self.map.flush().map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 
@@ -47,11 +51,6 @@ impl KvsEngine for SledKvsEngine {
                 }
             },
         )
-    }
-
-    fn store(&mut self) -> Result<()> {
-        self.map.flush().map_err(|e| e.to_string())?;
-        Ok(())
     }
 }
 

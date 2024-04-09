@@ -4,7 +4,6 @@ use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
-    panic,
     path::PathBuf,
 };
 
@@ -13,17 +12,6 @@ pub struct KvStore {
     map: HashMap<String, String>,
     file: Option<File>,
     log: Option<File>,
-}
-
-/// Catch the panic and return the error message.
-macro_rules! catch_unwind {
-    ($block:block, $err:literal) => {{
-        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| $block));
-        match result {
-            Ok(t) => Ok(t),
-            Err(_) => Err(($err).to_string()),
-        }
-    }};
 }
 
 impl KvStore {
@@ -38,37 +26,32 @@ impl KvStore {
 
     /// Open a KvStore at a given path.
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        catch_unwind!(
-            {
-                let path = path.into();
-                if !path.exists() {
-                    std::fs::create_dir_all(&path).unwrap();
-                }
-                let mut fs = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(path.join("store"))
-                    .unwrap();
-                let mut buf = String::new();
-                let log = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(path.join("log"))
-                    .unwrap();
+        let path = path.into();
+        if !path.exists() {
+            std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+        }
+        let mut fs = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path.join("store"))
+            .map_err(|e| e.to_string())?;
+        let mut buf = String::new();
+        let log = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path.join("log"))
+            .map_err(|e| e.to_string())?;
 
-                KvStore {
-                    map: match fs.read_to_string(&mut buf) {
-                        Ok(_) => serde_json::from_str(buf.as_str()).unwrap_or(HashMap::new()),
-                        Err(_) => HashMap::new(),
-                    },
-                    file: Some(fs),
-                    log: Some(log),
-                }
+        Ok(KvStore {
+            map: match fs.read_to_string(&mut buf) {
+                Ok(_) => serde_json::from_str(buf.as_str()).unwrap_or(HashMap::new()),
+                Err(_) => HashMap::new(),
             },
-            "painc"
-        )
+            file: Some(fs),
+            log: Some(log),
+        })
     }
 
     /// Log the command to the log file.
@@ -79,55 +62,6 @@ impl KvStore {
                 fs.write_all((cmd + "\n").as_bytes()).unwrap();
             }
             None => {}
-        }
-    }
-}
-
-impl KvsEngine for KvStore {
-    /// Set the value of a string key to a string.
-    fn set(&mut self, key: String, value: String) -> Result<()> {
-        catch_unwind!(
-            {
-                self.map.insert(key.clone(), value.clone());
-                self.store().unwrap();
-                self.log(format!("set({}, {})\n", key, value));
-            },
-            "The value is not written successfully."
-        )
-    }
-
-    /// Get the string value of a string key. If the key does not exist, return None.
-    fn get(&mut self, key: String) -> Result<Option<String>> {
-        catch_unwind!(
-            {
-                let value = self
-                    .map
-                    .get_key_value(key.as_str())
-                    .map(|(_, v)| v.to_string());
-                self.log(format!("get({})\n", key));
-                value
-            },
-            "The value is not read successfully."
-        )
-    }
-
-    /// Remove a key.
-    fn remove(&mut self, key: String) -> Result<()> {
-        match catch_unwind!(
-            {
-                let result = self.map.remove(key.as_str());
-                self.store().unwrap();
-                self.log(format!("remove({})\n", key));
-                match result {
-                    Some(_) => Ok(()),
-                    None => Err("Key not found".to_string()),
-                }
-            },
-            "The key is not removed successfully."
-        ) {
-            Ok(Ok(_)) => Ok(()),
-            Ok(Err(e)) => Err(e),
-            Err(e) => Err(e),
         }
     }
 
@@ -144,6 +78,37 @@ impl KvsEngine for KvStore {
             None => {}
         };
         Ok(())
+    }
+}
+
+impl KvsEngine for KvStore {
+    /// Set the value of a string key to a string.
+    fn set(&mut self, key: String, value: String) -> Result<()> {
+        self.map.insert(key.clone(), value.clone());
+        self.store()?;
+        self.log(format!("set({}, {})\n", key, value));
+        Ok(())
+    }
+
+    /// Get the string value of a string key. If the key does not exist, return None.
+    fn get(&mut self, key: String) -> Result<Option<String>> {
+        let value = self
+            .map
+            .get_key_value(key.as_str())
+            .map(|(_, v)| v.to_string());
+        self.log(format!("get({})\n", key));
+        Ok(value)
+    }
+
+    /// Remove a key.
+    fn remove(&mut self, key: String) -> Result<()> {
+        let result = self.map.remove(key.as_str());
+        self.store()?;
+        self.log(format!("remove({})\n", key));
+        match result {
+            Some(_) => Ok(()),
+            None => Err("Key not found".to_string()),
+        }
     }
 }
 
