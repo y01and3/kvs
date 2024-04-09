@@ -87,7 +87,7 @@ fn read_benches(c: &mut Criterion) {
             || {
                 let path = TempDir::new().unwrap();
                 let mut kvs = KvStore::open(path.path()).unwrap();
-                let keys = (0..3000)
+                let mut keys = (0..3000)
                     .map(|_| thread_rng().gen_range(1, 10000))
                     .map(|i| {
                         thread_rng()
@@ -118,7 +118,7 @@ fn read_benches(c: &mut Criterion) {
             },
             |(mut kvs, keys)| {
                 for key in keys.iter() {
-                    kvs.get(key).unwrap();
+                    kvs.get(key.clone()).unwrap();
                 }
             },
             BatchSize::SmallInput,
@@ -130,7 +130,7 @@ fn read_benches(c: &mut Criterion) {
             || {
                 let path = TempDir::new().unwrap();
                 let mut sled = SledKvsEngine::new(sled::open(&path).unwrap());
-                let keys = (0..3000)
+                let mut keys = (0..3000)
                     .map(|_| thread_rng().gen_range(1, 10000))
                     .map(|i| {
                         thread_rng()
@@ -161,7 +161,7 @@ fn read_benches(c: &mut Criterion) {
             },
             |(mut sled, keys, _path)| {
                 for key in keys.iter() {
-                    sled.get(key).unwrap();
+                    sled.get(key.clone()).unwrap();
                 }
             },
             BatchSize::SmallInput,
