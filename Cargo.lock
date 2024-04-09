@@ -124,6 +124,12 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cfg-if"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
+
+[[package]]
+name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
@@ -222,7 +228,7 @@ version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3855a8a784b474f333699ef2bbca9db2c4a1f6d9088a90a2d25b1eb53111eaa"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -268,7 +274,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613f8cc01fe9cf1a3eb3d7f488fd2fa8388403e97039e2f73692932e291a770d"
 dependencies = [
  "crossbeam-epoch",
- "crossbeam-utils",
+ "crossbeam-utils 0.8.19",
 ]
 
 [[package]]
@@ -277,7 +283,17 @@ version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
 dependencies = [
- "crossbeam-utils",
+ "crossbeam-utils 0.8.19",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04973fa96e96579258a5091af6003abde64af786b860f18622b82e026cca60e6"
+dependencies = [
+ "cfg-if 0.1.10",
+ "lazy_static",
 ]
 
 [[package]]
@@ -382,7 +398,7 @@ version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dd08c532ae367adf81c312a4580bc67f1d0fe8bc9c460520283f4c0ff277888"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "crunchy",
 ]
 
@@ -404,7 +420,7 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -449,7 +465,10 @@ dependencies = [
  "assert_cmd",
  "clap",
  "criterion",
+ "crossbeam-utils 0.6.6",
  "ctrlc",
+ "log",
+ "panic-control",
  "predicates",
  "rand",
  "serde",
@@ -506,7 +525,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
 dependencies = [
  "bitflags 2.5.0",
- "cfg-if",
+ "cfg-if 1.0.0",
  "cfg_aliases",
  "libc",
 ]
@@ -539,6 +558,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
+name = "panic-control"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "159973aebc43b4640619042b3bf160e3b6348000a949e37c0806ae6acc79d6c7"
+
+[[package]]
 name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -555,7 +580,7 @@ version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "instant",
  "libc",
  "redox_syscall",
@@ -761,7 +786,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
- "crossbeam-utils",
+ "crossbeam-utils 0.8.19",
 ]
 
 [[package]]
@@ -884,7 +909,7 @@ checksum = "7f96b4737c2ce5987354855aed3797279def4ebf734436c6aa4552cf8e169935"
 dependencies = [
  "crc32fast",
  "crossbeam-epoch",
- "crossbeam-utils",
+ "crossbeam-utils 0.8.19",
  "fs2",
  "fxhash",
  "libc",
@@ -921,7 +946,7 @@ version = "3.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85b77fafb263dd9d05cbeac119526425676db3784113aa9295c88498cbf8bff1"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "fastrand",
  "rustix",
  "windows-sys",
@@ -971,7 +996,7 @@ version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4be2531df63900aeb2bca0daaaddec08491ee64ceecbee5076636a3b026795a8"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "wasm-bindgen-macro",
 ]
 
