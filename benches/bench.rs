@@ -6,7 +6,10 @@ use tempfile::TempDir;
 
 fn write_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("write_bench");
-    group.significance_level(0.1).sample_size(50);
+    group
+        .significance_level(0.1)
+        .sample_size(100)
+        .measurement_time(std::time::Duration::from_secs(10));
     group.bench_function("kvs", move |b| {
         b.iter_batched(
             || {
@@ -83,7 +86,10 @@ fn write_benches(c: &mut Criterion) {
 
 fn read_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("read_bench");
-    group.significance_level(0.1).sample_size(10);
+    group
+        .significance_level(0.1)
+        .sample_size(10)
+        .measurement_time(std::time::Duration::from_secs(1000));
     group.bench_function("kvs", move |b| {
         b.iter_batched(
             || {
