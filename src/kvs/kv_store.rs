@@ -1,5 +1,6 @@
 use super::kvs_engine::KvsEngine;
 use crate::Result;
+use log::trace;
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
@@ -10,8 +11,7 @@ use std::{
 /// The `KvStore` stores string key/value pairs.
 pub struct KvStore {
     map: HashMap<String, String>,
-    file: Option<File>,
-    log: Option<File>,
+    file: File,
 }
 
 impl KvStore {
@@ -19,8 +19,7 @@ impl KvStore {
     pub fn new() -> KvStore {
         KvStore {
             map: HashMap::new(),
-            file: None,
-            log: None,
+            file: File::create("store").unwrap(),
         }
     }
 
@@ -37,46 +36,24 @@ impl KvStore {
             .open(path.join("store"))
             .map_err(|e| e.to_string())?;
         let mut buf = String::new();
-        let log = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path.join("log"))
-            .map_err(|e| e.to_string())?;
 
         Ok(KvStore {
             map: match fs.read_to_string(&mut buf) {
                 Ok(_) => serde_json::from_str(buf.as_str()).unwrap_or(HashMap::new()),
                 Err(_) => HashMap::new(),
             },
-            file: Some(fs),
-            log: Some(log),
+            file: fs,
         })
-    }
-
-    /// Log the command to the log file.
-    fn log(&mut self, cmd: String) {
-        match &self.log {
-            Some(fs) => {
-                let mut fs = fs;
-                fs.write_all((cmd + "\n").as_bytes()).unwrap();
-            }
-            None => {}
-        }
     }
 
     /// Store the map to the file.
     fn store(&mut self) -> Result<()> {
-        match &self.file {
-            Some(fs) => {
-                let mut fs = fs;
-                let buf = serde_json::to_string(&self.map).map_err(|e| e.to_string())?;
-                fs.set_len(0).map_err(|e| e.to_string())?;
-                fs.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-                fs.write_all(buf.as_bytes()).map_err(|e| e.to_string())?;
-            }
-            None => {}
-        };
+        let mut fs = self.file.try_clone().map_err(|e| e.to_string())?;
+        let buf = serde_json::to_string(&self.map).map_err(|e| e.to_string())?;
+        fs.set_len(0).map_err(|e| e.to_string())?;
+        fs.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+        fs.write_all(buf.as_bytes()).map_err(|e| e.to_string())?;
+
         Ok(())
     }
 }
@@ -86,7 +63,7 @@ impl KvsEngine for KvStore {
     fn set(&mut self, key: String, value: String) -> Result<()> {
         self.map.insert(key.clone(), value.clone());
         self.store()?;
-        self.log(format!("set({}, {})\n", key, value));
+        trace!("set:\t{}", key);
         Ok(())
     }
 
@@ -96,7 +73,7 @@ impl KvsEngine for KvStore {
             .map
             .get_key_value(key.as_str())
             .map(|(_, v)| v.to_string());
-        self.log(format!("get({})\n", key));
+        trace!("get:\t{}", key);
         Ok(value)
     }
 
@@ -104,7 +81,7 @@ impl KvsEngine for KvStore {
     fn remove(&mut self, key: String) -> Result<()> {
         let result = self.map.remove(key.as_str());
         self.store()?;
-        self.log(format!("remove({})\n", key));
+        trace!("remove:\t{}", key);
         match result {
             Some(_) => Ok(()),
             None => Err("Key not found".to_string()),
