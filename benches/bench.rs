@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 fn write_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("write_bench");
+    group.significance_level(0.1).sample_size(50);
     group.bench_function("kvs", move |b| {
         b.iter_batched(
             || {
@@ -82,6 +83,7 @@ fn write_benches(c: &mut Criterion) {
 
 fn read_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("read_bench");
+    group.significance_level(0.1).sample_size(10);
     group.bench_function("kvs", move |b| {
         b.iter_batched(
             || {
