@@ -111,7 +111,7 @@ fn read_benches(c: &mut Criterion) {
                     kvs.set(keys[i].clone(), values[i].clone()).unwrap();
                 }
                 drop(kvs);
-                for _ in 0..2000{
+                for _ in 0..2000 {
                     keys.remove(rand::thread_rng().gen_range(0, keys.len()));
                 }
                 (KvStore::open(path.path()).unwrap(), keys)
@@ -154,7 +154,7 @@ fn read_benches(c: &mut Criterion) {
                     sled.set(keys[i].clone(), values[i].clone()).unwrap();
                 }
                 drop(sled);
-                for _ in 0..2000{
+                for _ in 0..2000 {
                     keys.remove(rand::thread_rng().gen_range(0, keys.len()));
                 }
                 (SledKvsEngine::new(sled::open(&path).unwrap()), keys, path)
