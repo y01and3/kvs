@@ -1,5 +1,6 @@
 pub mod kvs;
 pub mod net;
+pub mod thread_pool;
 
 pub use kvs::kv_store::KvStore;
 pub use kvs::kvs_engine::{KvsEngine, SledKvsEngine};

@@ -36,7 +36,7 @@ fn write_benches(c: &mut Criterion) {
                     .collect::<Vec<String>>();
                 (kvs, keys, values)
             },
-            |(mut kvs, keys, values)| {
+            |(kvs, keys, values)| {
                 for i in 0..100 {
                     kvs.set(keys[i].clone(), values[i].clone()).unwrap();
                 }
@@ -72,7 +72,7 @@ fn write_benches(c: &mut Criterion) {
                     .collect::<Vec<String>>();
                 (sled, keys, values, path)
             },
-            |(mut sled, keys, values, _path)| {
+            |(sled, keys, values, _path)| {
                 for i in 0..100 {
                     sled.set(keys[i].clone(), values[i].clone()).unwrap();
                 }
@@ -94,7 +94,7 @@ fn read_benches(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let path = TempDir::new().unwrap();
-                let mut kvs = KvStore::open(path.path()).unwrap();
+                let kvs = KvStore::open(path.path()).unwrap();
                 let mut keys = (0..3000)
                     .map(|_| thread_rng().gen_range(1, 10000))
                     .map(|i| {
@@ -124,7 +124,7 @@ fn read_benches(c: &mut Criterion) {
                 }
                 (KvStore::open(path.path()).unwrap(), keys)
             },
-            |(mut kvs, keys)| {
+            |(kvs, keys)| {
                 for key in keys.iter() {
                     kvs.get(key.clone()).unwrap();
                 }
@@ -137,7 +137,7 @@ fn read_benches(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let path = TempDir::new().unwrap();
-                let mut sled = SledKvsEngine::new(sled::open(&path).unwrap());
+                let sled = SledKvsEngine::new(sled::open(&path).unwrap());
                 let mut keys = (0..3000)
                     .map(|_| thread_rng().gen_range(1, 10000))
                     .map(|i| {
@@ -167,7 +167,7 @@ fn read_benches(c: &mut Criterion) {
                 }
                 (SledKvsEngine::new(sled::open(&path).unwrap()), keys, path)
             },
-            |(mut sled, keys, _path)| {
+            |(sled, keys, _path)| {
                 for key in keys.iter() {
                     sled.get(key.clone()).unwrap();
                 }
@@ -179,5 +179,5 @@ fn read_benches(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, write_benches, read_benches);
-criterion_main!(benches);
+criterion_group!(engine, write_benches, read_benches);
+criterion_main!(engine);

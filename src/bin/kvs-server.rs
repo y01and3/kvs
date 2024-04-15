@@ -1,8 +1,11 @@
-use ctrlc;
-use std::{fs::read_dir, process::exit};
+use std::fs::read_dir;
 
 use clap::Parser;
-use kvs::{net::server::KvServer, KvStore, SledKvsEngine};
+use kvs::{
+    net::server::KvServer,
+    thread_pool::{SharedQueueThreadPool, ThreadPool},
+    KvStore, SledKvsEngine,
+};
 
 #[derive(Parser)]
 #[command(version)]
@@ -27,34 +30,20 @@ fn main() {
     }
     match engine.as_deref() {
         Some("kvs") => {
-            let mut sever = KvServer::new(
+            let sever = KvServer::new(
                 KvStore::open("kvs".to_string()).unwrap(),
                 cli.addr.unwrap_or("127.0.0.1:4000".to_string()),
+                SharedQueueThreadPool::new(4).unwrap(),
             );
-            let store = sever.store.clone();
-
-            ctrlc::set_handler(move || {
-                let store = store.lock().unwrap();
-                drop(store);
-                exit(0);
-            })
-            .expect("Error setting Ctrl-C handler");
 
             sever.run().unwrap();
         }
         Some("sled") => {
-            let mut sever = KvServer::new(
+            let sever = KvServer::new(
                 SledKvsEngine::new(sled::open("sled").unwrap()),
                 cli.addr.unwrap_or("127.0.0.1:4000".to_string()),
+                SharedQueueThreadPool::new(4).unwrap(),
             );
-            let store = sever.store.clone();
-
-            ctrlc::set_handler(move || {
-                let store = store.lock().unwrap();
-                drop(store);
-                exit(0);
-            })
-            .expect("Error setting Ctrl-C handler");
 
             sever.run().unwrap();
         }
@@ -63,18 +52,11 @@ fn main() {
             std::process::exit(1);
         }
         None => {
-            let mut sever = KvServer::new(
+            let sever = KvServer::new(
                 KvStore::open("kvs".to_string()).unwrap(),
                 cli.addr.unwrap_or("127.0.0.1:4000".to_string()),
+                SharedQueueThreadPool::new(4).unwrap(),
             );
-            let store = sever.store.clone();
-
-            ctrlc::set_handler(move || {
-                let store = store.lock().unwrap();
-                drop(store);
-                exit(0);
-            })
-            .expect("Error setting Ctrl-C handler");
 
             sever.run().unwrap();
         }
