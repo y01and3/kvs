@@ -1,35 +1,38 @@
-use std::cell::RefCell;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub struct Node<T: Hash + Default + Clone> {
     data: T,
     hash: u64,
-    next: Option<Rc<RefCell<Node<T>>>>,
+    next: Option<Arc<Mutex<Node<T>>>>,
 }
 
 impl<T: Hash + Default + Clone> Node<T> {
-    pub fn new(data: &T) -> Rc<RefCell<Node<T>>> {
+    pub fn new(data: &T) -> Arc<Mutex<Node<T>>> {
         let hash = get_hash(&data);
-        Rc::new(RefCell::new(Node {
+        Arc::new(Mutex::new(Node {
             data: data.clone(),
             hash,
             next: None,
         }))
     }
-    pub fn only_hash(hash: u64) -> Rc<RefCell<Node<T>>> {
-        Rc::new(RefCell::new(Node {
-            data: Default::default(),
+    pub fn new_with_next(
+        data: &T,
+        hash: u64,
+        next: Option<Arc<Mutex<Node<T>>>>,
+    ) -> Arc<Mutex<Node<T>>> {
+        Arc::new(Mutex::new(Node {
+            data: data.clone(),
             hash,
-            next: None,
+            next,
         }))
     }
 
-    pub fn set_next(&mut self, next: Option<Rc<RefCell<Node<T>>>>) {
+    pub fn set_next(&mut self, next: Option<Arc<Mutex<Node<T>>>>) {
         self.next = next;
     }
 
-    pub fn next(&self) -> Option<Rc<RefCell<Node<T>>>> {
+    pub fn next(&self) -> Option<Arc<Mutex<Node<T>>>> {
         self.next.clone()
     }
     pub fn data(&self) -> &T {
@@ -41,12 +44,12 @@ impl<T: Hash + Default + Clone> Node<T> {
 }
 
 pub struct LinkedList<T: Hash + Default + Clone> {
-    head: Rc<RefCell<Node<T>>>,
+    head: Arc<Mutex<Node<T>>>,
 }
 
 impl<T: Hash + Default + Clone> LinkedList<T> {
     pub fn new() -> Self {
-        let head = Rc::new(RefCell::new(Node {
+        let head = Arc::new(Mutex::new(Node {
             data: Default::default(),
             hash: u64::MIN,
             next: None,
@@ -54,23 +57,27 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
         LinkedList { head }
     }
     pub fn add(&self, data: &T) -> Option<T> {
-        let new_node = Node::new(data);
-        let mut current = Rc::clone(&self.head);
+        let hash = get_hash(&data);
+        let mut current = Arc::clone(&self.head);
         loop {
-            let next = current.borrow().next();
+            let next = current.lock().unwrap().next();
             match next {
                 Some(next) => {
-                    if next.borrow().hash() > new_node.borrow().hash() {
-                        new_node.borrow_mut().set_next(Some(Rc::clone(&next)));
-                        current.borrow_mut().set_next(Some(new_node));
+                    let next_hash = next.lock().unwrap().hash();
+                    if next_hash > hash {
+                        current.lock().unwrap().set_next(Some(Node::new_with_next(
+                            data,
+                            hash,
+                            Some(Arc::clone(&next)),
+                        )));
                         return Some(data.clone());
-                    } else if next.borrow().hash() == new_node.borrow().hash() {
+                    } else if next_hash == hash {
                         return None;
                     }
-                    current = Rc::clone(&next);
+                    current = Arc::clone(&next);
                 }
                 None => {
-                    current.borrow_mut().set_next(Some(new_node));
+                    current.lock().unwrap().set_next(Some(Node::new(data)));
                     return Some(data.clone());
                 }
             }
@@ -78,21 +85,22 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
     }
     pub fn remove(&self, data: &T) -> Option<T> {
         let hash = get_hash(data);
-        let mut prev = Rc::clone(&self.head);
-        let mut current = Rc::clone(&self.head).borrow().next();
+        let mut prev = Arc::clone(&self.head);
+        let mut current = Arc::clone(&self.head).lock().unwrap().next();
         loop {
             match current {
                 Some(cur) => {
-                    if cur.borrow().hash() == hash {
-                        let next = cur.borrow().next();
-                        prev.borrow_mut().set_next(next);
+                    let cur_hash = cur.lock().unwrap().hash();
+                    let next = cur.lock().unwrap().next();
+                    if cur_hash == hash {
+                        prev.lock().unwrap().set_next(next);
                         drop(cur);
                         return Some(data.clone());
-                    } else if cur.borrow().hash() > hash {
+                    } else if cur_hash > hash {
                         return None;
                     }
-                    current = cur.borrow().next();
-                    prev = Rc::clone(&cur);
+                    prev = Arc::clone(&cur);
+                    current = next;
                 }
                 None => return None,
             }
@@ -100,16 +108,17 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
     }
     pub fn find(&self, data: &T) -> Option<()> {
         let hash = get_hash(data);
-        let mut current = Rc::clone(&self.head).borrow().next();
+        let mut current = Arc::clone(&self.head).lock().unwrap().next();
         loop {
             match current {
                 Some(cur) => {
-                    if cur.borrow().hash() == hash {
+                    let cur_hash = cur.lock().unwrap().hash();
+                    if cur_hash == hash {
                         return Some(());
-                    } else if cur.borrow().hash() > hash {
+                    } else if cur_hash > hash {
                         return None;
                     }
-                    current = cur.borrow().next();
+                    current = cur.lock().unwrap().next();
                 }
                 None => return None,
             }
@@ -146,5 +155,14 @@ pub mod tests {
         assert_eq!(list.add(&1), Some(1));
         assert_eq!(list.remove(&1), Some(1));
         assert_eq!(list.remove(&1), None);
+    }
+
+    fn is_send<T: Send>() {}
+    fn is_sync<T: Sync>() {}
+
+    #[test]
+    fn test_send_sync() {
+        is_send::<LinkedList<i32>>();
+        is_sync::<LinkedList<i32>>();
     }
 }
