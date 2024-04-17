@@ -1,16 +1,16 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 pub struct Node<T: Hash + Default + Clone> {
     data: T,
     hash: u64,
-    next: Option<Arc<Mutex<Node<T>>>>,
+    next: Option<Arc<RwLock<Node<T>>>>,
 }
 
 impl<T: Hash + Default + Clone> Node<T> {
-    pub fn new(data: &T) -> Arc<Mutex<Node<T>>> {
+    pub fn new(data: &T) -> Arc<RwLock<Node<T>>> {
         let hash = get_hash(&data);
-        Arc::new(Mutex::new(Node {
+        Arc::new(RwLock::new(Node {
             data: data.clone(),
             hash,
             next: None,
@@ -19,20 +19,20 @@ impl<T: Hash + Default + Clone> Node<T> {
     pub fn new_with_next(
         data: &T,
         hash: u64,
-        next: Option<Arc<Mutex<Node<T>>>>,
-    ) -> Arc<Mutex<Node<T>>> {
-        Arc::new(Mutex::new(Node {
+        next: Option<Arc<RwLock<Node<T>>>>,
+    ) -> Arc<RwLock<Node<T>>> {
+        Arc::new(RwLock::new(Node {
             data: data.clone(),
             hash,
             next,
         }))
     }
 
-    pub fn set_next(&mut self, next: Option<Arc<Mutex<Node<T>>>>) {
+    pub fn set_next(&mut self, next: Option<Arc<RwLock<Node<T>>>>) {
         self.next = next;
     }
 
-    pub fn next(&self) -> Option<Arc<Mutex<Node<T>>>> {
+    pub fn next(&self) -> Option<Arc<RwLock<Node<T>>>> {
         self.next.clone()
     }
     pub fn data(&self) -> &T {
@@ -44,12 +44,12 @@ impl<T: Hash + Default + Clone> Node<T> {
 }
 
 pub struct LinkedList<T: Hash + Default + Clone> {
-    head: Arc<Mutex<Node<T>>>,
+    head: Arc<RwLock<Node<T>>>,
 }
 
 impl<T: Hash + Default + Clone> LinkedList<T> {
     pub fn new() -> Self {
-        let head = Arc::new(Mutex::new(Node {
+        let head = Arc::new(RwLock::new(Node {
             data: Default::default(),
             hash: u64::MIN,
             next: None,
@@ -60,24 +60,24 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
         let hash = get_hash(&data);
         let mut current = Arc::clone(&self.head);
         loop {
-            let next = current.lock().unwrap().next();
+            let next = current.read().unwrap().next();
             match next {
                 Some(next) => {
-                    let next_hash = next.lock().unwrap().hash();
-                    if next_hash > hash {
-                        current.lock().unwrap().set_next(Some(Node::new_with_next(
+                    let next_read = next.read().unwrap();
+                    if next_read.hash() > hash {
+                        current.write().unwrap().set_next(Some(Node::new_with_next(
                             data,
                             hash,
                             Some(Arc::clone(&next)),
                         )));
                         return Some(data.clone());
-                    } else if next_hash == hash {
+                    } else if next_read.hash() == hash {
                         return None;
                     }
                     current = Arc::clone(&next);
                 }
                 None => {
-                    current.lock().unwrap().set_next(Some(Node::new(data)));
+                    current.write().unwrap().set_next(Some(Node::new(data)));
                     return Some(data.clone());
                 }
             }
@@ -86,17 +86,16 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
     pub fn remove(&self, data: &T) -> Option<T> {
         let hash = get_hash(data);
         let mut prev = Arc::clone(&self.head);
-        let mut current = Arc::clone(&self.head).lock().unwrap().next();
+        let mut current = Arc::clone(&self.head).read().unwrap().next();
         loop {
             match current {
                 Some(cur) => {
-                    let cur_hash = cur.lock().unwrap().hash();
-                    let next = cur.lock().unwrap().next();
-                    if cur_hash == hash {
-                        prev.lock().unwrap().set_next(next);
-                        drop(cur);
+                    let cur_read = cur.read().unwrap();
+                    let next = cur.read().unwrap().next();
+                    if cur_read.hash() == hash {
+                        prev.write().unwrap().set_next(next);
                         return Some(data.clone());
-                    } else if cur_hash > hash {
+                    } else if cur_read.hash() > hash {
                         return None;
                     }
                     prev = Arc::clone(&cur);
@@ -108,17 +107,17 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
     }
     pub fn find(&self, data: &T) -> Option<()> {
         let hash = get_hash(data);
-        let mut current = Arc::clone(&self.head).lock().unwrap().next();
+        let mut current = Arc::clone(&self.head).read().unwrap().next();
         loop {
             match current {
                 Some(cur) => {
-                    let cur_hash = cur.lock().unwrap().hash();
-                    if cur_hash == hash {
+                    let cur_read = cur.read().unwrap();
+                    if cur_read.hash() == hash {
                         return Some(());
-                    } else if cur_hash > hash {
+                    } else if cur_read.hash() > hash {
                         return None;
                     }
-                    current = cur.lock().unwrap().next();
+                    current = cur_read.next();
                 }
                 None => return None,
             }
