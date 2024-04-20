@@ -1,129 +1,179 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::mem;
-use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 pub struct Node<T: Hash + Default + Clone> {
     data: T,
     hash: u64,
-    next: Option<Arc<RwLock<Node<T>>>>,
+    next: Option<AtomicPtr<Node<T>>>,
 }
 
 impl<T: Hash + Default + Clone> Node<T> {
-    pub fn new(data: &T) -> Arc<RwLock<Node<T>>> {
-        let hash = get_hash(&data);
-        Arc::new(RwLock::new(Node {
+    pub fn new(data: &T) -> AtomicPtr<Node<T>> {
+        AtomicPtr::new(Box::into_raw(Box::new(Node {
             data: data.clone(),
-            hash,
+            hash: get_hash(&data),
             next: None,
-        }))
+        })))
     }
-    pub fn new_with_next(
-        data: &T,
-        hash: u64,
-        next: Option<Arc<RwLock<Node<T>>>>,
-    ) -> Arc<RwLock<Node<T>>> {
-        Arc::new(RwLock::new(Node {
+    pub fn new_with_next(data: &T, next: Option<AtomicPtr<Node<T>>>) -> AtomicPtr<Node<T>> {
+        AtomicPtr::new(Box::into_raw(Box::new(Node {
             data: data.clone(),
-            hash,
+            hash: get_hash(&data),
             next,
-        }))
+        })))
+    }
+    pub fn new_with_old(
+        old: &Node<T>,
+        data: &T,
+        next: Option<AtomicPtr<Node<T>>>,
+    ) -> AtomicPtr<Node<T>> {
+        AtomicPtr::new(Box::into_raw(Box::new(Node {
+            data: old.data.clone(),
+            hash: old.hash.clone(),
+            next: Some(AtomicPtr::new(Box::into_raw(Box::new(Node {
+                data: data.clone(),
+                hash: get_hash(data),
+                next,
+            })))),
+        })))
     }
 
-    pub fn set_next(&mut self, next: Option<Arc<RwLock<Node<T>>>>) {
-        self.next = next;
-    }
+    // pub fn set_next(&mut self, next: Option<AtomicPtr<Node<T>>>) {
+    //     self.next = next;
+    // }
 
-    pub fn next(&self) -> Option<Arc<RwLock<Node<T>>>> {
-        self.next.clone()
-    }
-    pub fn data(&self) -> &T {
-        &self.data
-    }
+    // pub fn next(&self) -> Option<&AtomicPtr<Node<T>>> {
+    //     self.next.as_ref()
+    // }
+    // pub fn data(&self) -> &T {
+    //     &self.data
+    // }
     pub fn hash(&self) -> u64 {
         self.hash
     }
 }
 
 pub struct LinkedList<T: Hash + Default + Clone> {
-    head: Arc<RwLock<Node<T>>>,
+    head: AtomicPtr<Node<T>>,
 }
 
 impl<T: Hash + Default + Clone> LinkedList<T> {
     pub fn new() -> Self {
-        let head = Arc::new(RwLock::new(Node {
+        let head = AtomicPtr::new(Box::into_raw(Box::new(Node {
             data: Default::default(),
             hash: u64::MIN,
             next: None,
-        }));
+        })));
         LinkedList { head }
     }
     pub fn add(&self, data: &T) -> Option<T> {
         let hash = get_hash(&data);
-        let mut current = Arc::clone(&self.head);
-        let mut cur_read = current.read().unwrap();
+        let mut cur_ptr = &self.head;
+        let mut current = self.head.load(Ordering::Acquire);
         loop {
-            match cur_read.next() {
-                Some(next) => {
-                    let next_read = next.read().unwrap();
-                    if next_read.hash() > hash {
-                        drop(cur_read);
-                        current.write().unwrap().set_next(Some(Node::new_with_next(
-                            data,
-                            hash,
-                            Some(Arc::clone(&next)),
-                        )));
-                        return Some(data.clone());
-                    } else if next_read.hash() == hash {
+            match unsafe { &(*current).next } {
+                Some(next_ptr) => {
+                    let next = next_ptr.load(Ordering::Acquire);
+                    let next_hash = unsafe { (*next).hash() };
+                    if next_hash == hash {
                         return None;
+                    } else if next_hash > hash {
+                        let new_current = Node::new_with_old(
+                            unsafe { &(*current) },
+                            data,
+                            Some(AtomicPtr::new(next)),
+                        );
+                        match cur_ptr.compare_exchange(
+                            current,
+                            new_current.load(Ordering::Relaxed),
+                            Ordering::SeqCst,
+                            Ordering::Relaxed,
+                        ) {
+                            Ok(_) => {
+                                return Some(data.clone());
+                            }
+                            Err(_) => {
+                                return self.add(data);
+                            }
+                        }
                     }
-                    cur_read = unsafe { mem::transmute(next_read) };
-                    current = Arc::clone(&next);
+                    cur_ptr = next_ptr;
+                    current = next;
                 }
                 None => {
-                    drop(cur_read);
-                    current.write().unwrap().set_next(Some(Node::new(data)));
-                    return Some(data.clone());
+                    let new_current = Node::new_with_old(unsafe { &(*current) }, data, None);
+                    match cur_ptr.compare_exchange(
+                        current,
+                        new_current.load(Ordering::Relaxed),
+                        Ordering::SeqCst,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => {
+                            return Some(data.clone());
+                        }
+                        Err(_) => {
+                            return self.add(data);
+                        }
+                    }
                 }
             }
         }
     }
     pub fn remove(&self, data: &T) -> Option<T> {
         let hash = get_hash(data);
-        let mut prev = Arc::clone(&self.head);
-        let mut prev_read = prev.read().unwrap();
-        let mut current = Arc::clone(&self.head).read().unwrap().next();
+        let mut prev_ptr = &self.head;
+        let mut prev = self.head.load(Ordering::Acquire);
+        let mut current = unsafe { &(*self.head.load(Ordering::Acquire)).next };
         loop {
             match current {
-                Some(cur) => {
-                    let cur_read = cur.read().unwrap();
-                    if cur_read.hash() == hash {
-                        drop(prev_read);
-                        prev.write().unwrap().set_next(cur_read.next());
-                        return Some(data.clone());
-                    } else if cur_read.hash() > hash {
+                Some(cur_ptr) => {
+                    let cur = cur_ptr.load(Ordering::Acquire);
+                    let cur_hash = unsafe { (*cur).hash() };
+                    if cur_hash == hash {
+                        let new_prev = AtomicPtr::new(Box::into_raw(Box::new(Node {
+                            data: unsafe { (*prev).data.clone() },
+                            hash: unsafe { (*prev).hash.clone() },
+                            next: unsafe { (*cur).next.as_ref().map(|r| AtomicPtr::new(r.load(Ordering::Acquire))) },
+                        })));
+                        match prev_ptr.compare_exchange(
+                            prev,
+                            new_prev.load(Ordering::Relaxed),
+                            Ordering::SeqCst,
+                            Ordering::Relaxed,
+                        ) {
+                            Ok(_) => {
+                                return Some(data.clone());
+                            }
+                            Err(_) => {
+                                return self.remove(data);
+                            }
+                        }
+                    } else if cur_hash > hash {
                         return None;
                     }
-                    prev_read = unsafe { mem::transmute(cur_read) };
-                    prev = Arc::clone(&cur);
-                    current = prev_read.next();
+                    prev_ptr = cur_ptr;
+                    prev = cur;
+                    current = unsafe { &((*cur).next) };
                 }
                 None => return None,
             }
         }
     }
-    pub fn find(&self, data: &T) -> Option<()> {
+    pub fn find(&self, data: &T) -> Option<u32> {
         let hash = get_hash(data);
-        let mut current = self.head.read().unwrap();
+        let mut cur_ptr = &self.head;
+        let mut index = 0;
         loop {
-            match current.next() {
-                Some(next) => {
-                    let next_read = next.read().unwrap();
-                    if next_read.hash() == hash {
-                        return Some(());
-                    } else if next_read.hash() > hash {
+            match unsafe { &(*cur_ptr.load(Ordering::Acquire)).next } {
+                Some(next_ptr) => {
+                    let next_hash = unsafe { (*next_ptr.load(Ordering::Acquire)).hash };
+                    if next_hash == hash {
+                        return Some(index);
+                    } else if next_hash > hash {
                         return None;
                     }
-                    current = unsafe { mem::transmute(next_read) };
+                    cur_ptr = next_ptr;
+                    index += 1;
                 }
                 None => return None,
             }
@@ -139,6 +189,7 @@ fn get_hash<T: Hash>(t: &T) -> u64 {
 
 #[cfg(test)]
 pub mod tests {
+
     use super::*;
 
     #[test]
@@ -146,20 +197,26 @@ pub mod tests {
         let list = LinkedList::new();
         assert_eq!(list.add(&1), Some(1));
         assert_eq!(list.add(&1), None);
+        assert_eq!(list.add(&2), Some(2));
     }
     #[test]
     fn test_linked_list_find() {
         let list = LinkedList::new();
         assert_eq!(list.add(&1), Some(1));
-        assert_eq!(list.find(&1), Some(()));
+        assert_eq!(list.find(&1), Some(0));
         assert_eq!(list.find(&2), None);
+        assert_eq!(list.add(&2), Some(2));
+        assert_eq!(list.find(&1), Some(0));
+        assert_eq!(list.find(&2), Some(1));
     }
     #[test]
     fn test_linked_list_remove() {
         let list = LinkedList::new();
         assert_eq!(list.add(&1), Some(1));
+        assert_eq!(list.add(&2), Some(2));
         assert_eq!(list.remove(&1), Some(1));
-        assert_eq!(list.remove(&1), None);
+        assert_eq!(list.find(&1), None);
+        assert_eq!(list.find(&2), Some(0));
     }
 
     fn is_send<T: Send>() {}
