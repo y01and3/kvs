@@ -1,13 +1,13 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-pub struct Node<T: Hash + Default + Clone> {
+pub struct Node<T: Hash + Default + Clone + Eq> {
     data: T,
     hash: u64,
     next: Option<AtomicPtr<Node<T>>>,
 }
 
-impl<T: Hash + Default + Clone> Node<T> {
+impl<T: Hash + Default + Clone + Eq> Node<T> {
     pub fn new(data: &T) -> AtomicPtr<Node<T>> {
         AtomicPtr::new(Box::into_raw(Box::new(Node {
             data: data.clone(),
@@ -37,27 +37,13 @@ impl<T: Hash + Default + Clone> Node<T> {
             })))),
         })))
     }
-
-    // pub fn set_next(&mut self, next: Option<AtomicPtr<Node<T>>>) {
-    //     self.next = next;
-    // }
-
-    // pub fn next(&self) -> Option<&AtomicPtr<Node<T>>> {
-    //     self.next.as_ref()
-    // }
-    // pub fn data(&self) -> &T {
-    //     &self.data
-    // }
-    pub fn hash(&self) -> u64 {
-        self.hash
-    }
 }
 
-pub struct LinkedList<T: Hash + Default + Clone> {
+pub struct LinkedList<T: Hash + Default + Clone + Eq> {
     head: AtomicPtr<Node<T>>,
 }
 
-impl<T: Hash + Default + Clone> LinkedList<T> {
+impl<T: Hash + Default + Clone + Eq> LinkedList<T> {
     pub fn new() -> Self {
         let head = AtomicPtr::new(Box::into_raw(Box::new(Node {
             data: Default::default(),
@@ -74,9 +60,11 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
             match unsafe { &(*current).next } {
                 Some(next_ptr) => {
                     let next = next_ptr.load(Ordering::Acquire);
-                    let next_hash = unsafe { (*next).hash() };
+                    let next_hash = unsafe { (*next).hash.clone() };
                     if next_hash == hash {
-                        return None;
+                        if unsafe { &(*next).data } == data {
+                            return None;
+                        }
                     } else if next_hash > hash {
                         let new_current = Node::new_with_old(
                             unsafe { &(*current) },
@@ -128,25 +116,34 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
             match current {
                 Some(cur_ptr) => {
                     let cur = cur_ptr.load(Ordering::Acquire);
-                    let cur_hash = unsafe { (*cur).hash() };
+                    let cur_hash = unsafe { (*cur).hash.clone() };
                     if cur_hash == hash {
-                        let new_prev = AtomicPtr::new(Box::into_raw(Box::new(Node {
-                            data: unsafe { (*prev).data.clone() },
-                            hash: unsafe { (*prev).hash.clone() },
-                            next: unsafe { (*cur).next.as_ref().map(|r| AtomicPtr::new(r.load(Ordering::Acquire))) },
-                        })));
-                        match prev_ptr.compare_exchange(
-                            prev,
-                            new_prev.load(Ordering::Relaxed),
-                            Ordering::SeqCst,
-                            Ordering::Relaxed,
-                        ) {
-                            Ok(_) => {
-                                return Some(data.clone());
+                        if unsafe { &(*cur).data } == data {
+                            let new_prev = AtomicPtr::new(Box::into_raw(Box::new(Node {
+                                data: unsafe { (*prev).data.clone() },
+                                hash: unsafe { (*prev).hash.clone() },
+                                next: unsafe {
+                                    (*cur)
+                                        .next
+                                        .as_ref()
+                                        .map(|r| AtomicPtr::new(r.load(Ordering::Acquire)))
+                                },
+                            })));
+                            match prev_ptr.compare_exchange(
+                                prev,
+                                new_prev.load(Ordering::Relaxed),
+                                Ordering::SeqCst,
+                                Ordering::Relaxed,
+                            ) {
+                                Ok(_) => {
+                                    return Some(data.clone());
+                                }
+                                Err(_) => {
+                                    return self.remove(data);
+                                }
                             }
-                            Err(_) => {
-                                return self.remove(data);
-                            }
+                        } else {
+                            return None;
                         }
                     } else if cur_hash > hash {
                         return None;
@@ -166,9 +163,11 @@ impl<T: Hash + Default + Clone> LinkedList<T> {
         loop {
             match unsafe { &(*cur_ptr.load(Ordering::Acquire)).next } {
                 Some(next_ptr) => {
-                    let next_hash = unsafe { (*next_ptr.load(Ordering::Acquire)).hash };
+                    let next_hash = unsafe { (*next_ptr.load(Ordering::Acquire)).hash.clone() };
                     if next_hash == hash {
-                        return Some(index);
+                        if unsafe { &(*next_ptr.load(Ordering::Acquire)).data } == data {
+                            return Some(index);
+                        }
                     } else if next_hash > hash {
                         return None;
                     }
