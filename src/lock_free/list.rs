@@ -15,13 +15,7 @@ impl<T: Hash + Default + Clone + Eq> Node<T> {
             next: None,
         })))
     }
-    pub fn new_with_next(data: &T, next: Option<AtomicPtr<Node<T>>>) -> AtomicPtr<Node<T>> {
-        AtomicPtr::new(Box::into_raw(Box::new(Node {
-            data: data.clone(),
-            hash: get_hash(&data),
-            next,
-        })))
-    }
+    
     pub fn new_with_old(
         old: &Node<T>,
         data: &T,
@@ -39,18 +33,18 @@ impl<T: Hash + Default + Clone + Eq> Node<T> {
     }
 }
 
-pub struct LinkedList<T: Hash + Default + Clone + Eq> {
+pub struct List<T: Hash + Default + Clone + Eq> {
     head: AtomicPtr<Node<T>>,
 }
 
-impl<T: Hash + Default + Clone + Eq> LinkedList<T> {
+impl<T: Hash + Default + Clone + Eq> List<T> {
     pub fn new() -> Self {
         let head = AtomicPtr::new(Box::into_raw(Box::new(Node {
             data: Default::default(),
             hash: u64::MIN,
             next: None,
         })));
-        LinkedList { head }
+        List { head }
     }
     pub fn add(&self, data: &T) -> Option<T> {
         let hash = get_hash(&data);
@@ -192,15 +186,15 @@ pub mod tests {
     use super::*;
 
     #[test]
-    fn test_linked_list_add() {
-        let list = LinkedList::new();
+    fn test_list_add() {
+        let list = List::new();
         assert_eq!(list.add(&1), Some(1));
         assert_eq!(list.add(&1), None);
         assert_eq!(list.add(&2), Some(2));
     }
     #[test]
-    fn test_linked_list_find() {
-        let list = LinkedList::new();
+    fn test_list_find() {
+        let list = List::new();
         assert_eq!(list.add(&1), Some(1));
         assert_eq!(list.find(&1), Some(0));
         assert_eq!(list.find(&2), None);
@@ -209,8 +203,8 @@ pub mod tests {
         assert_eq!(list.find(&2), Some(1));
     }
     #[test]
-    fn test_linked_list_remove() {
-        let list = LinkedList::new();
+    fn test_list_remove() {
+        let list = List::new();
         assert_eq!(list.add(&1), Some(1));
         assert_eq!(list.add(&2), Some(2));
         assert_eq!(list.remove(&1), Some(1));
@@ -223,7 +217,7 @@ pub mod tests {
 
     #[test]
     fn test_send_sync() {
-        is_send::<LinkedList<i32>>();
-        is_sync::<LinkedList<i32>>();
+        is_send::<List<i32>>();
+        is_sync::<List<i32>>();
     }
 }

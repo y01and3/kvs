@@ -1,5 +1,5 @@
 pub mod kvs;
-pub mod lock_free_hashmap;
+pub mod lock_free;
 pub mod net;
 pub mod thread_pool;
 
