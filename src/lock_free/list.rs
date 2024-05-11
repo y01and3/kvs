@@ -15,7 +15,7 @@ impl<T: Hash + Default + Clone + Eq> Node<T> {
             next: None,
         })))
     }
-    
+
     pub fn new_with_old(
         old: &Node<T>,
         data: &T,
